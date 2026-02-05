@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RCLPro v2.4 - Scouting Data Suite & Agent Hub</title>
+    
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;500;700&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { 
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Exo 2', 'sans-serif']
+                    },
+                    colors: {
+                        brand: { 
+                            50: '#f0f9ff', 
+                            100: '#e0f2fe', 
+                            400: '#38bdf8', 
+                            500: '#0ea5e9', 
+                            600: '#0284c7', 
+                            900: '#0c4a6e' 
+                        },
+                        accent: { 
+                            400: '#fbbf24', 
+                            500: '#f59e0b', 
+                            600: '#d97706' 
+                        },
+                        dark: { 
+                            800: '#1e293b', 
+                            900: '#0f172a' 
+                        },
+                        danger: { 
+                            500: '#ef4444', 
+                            50: '#fef2f2' 
+                        },
+                        success: { 
+                            500: '#10b981', 
+                            50: '#ecfdf5' 
+                        },
+                        agent: {
+                            yes: '#10b981', // Green for HAS agent
+                            no: '#ef4444',  // Red for NO agent (Opportunity)
+                            maybe: '#94a3b8'
+                        },
+                        pitch: { 
+                            light: '#34d399', 
+                            dark: '#059669', 
+                            line: 'rgba(255,255,255,0.7)' 
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #f8fafc; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Effects */
+        .card-hover { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+        
+        /* Table Styles */
+        .standings-row:hover { background-color: #f0f9ff; cursor: pointer; transform: scale(1.005); transition: all 0.1s; }
+        .pos-badge { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: bold; font-size: 0.8rem; }
+        .pos-1 { background-color: #fbbf24; color: #78350f; } /* Gold */
+        .pos-2 { background-color: #94a3b8; color: #fff; } /* Silver */
+        .pos-3 { background-color: #b45309; color: #fff; } /* Bronze */
+        .pos-up { background-color: #d1fae5; color: #065f46; } /* Promotion zone */
+        .pos-down { background-color: #fee2e2; color: #991b1b; } /* Relegation */
+
+        /* SHADOW TEAM PITCH STYLES */
+        .soccer-pitch {
+            background: repeating-linear-gradient(0deg, #059669, #059669 50px, #10b981 50px, #10b981 100px);
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
+        .center-circle { width: 100px; height: 100px; border: 2px solid rgba(255,255,255,0.6); border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); position: absolute; }
+        .half-line { width: 100%; height: 2px; background: rgba(255,255,255,0.6); top: 50%; left: 0; position: absolute; }
+        .penalty-area { width: 250px; height: 120px; border: 2px solid rgba(255,255,255,0.6); position: absolute; left: 50%; transform: translateX(-50%); }
+        .penalty-area-top { top: 0; border-top: none; }
+        .penalty-area-bottom { bottom: 0; border-bottom: none; }
+        
+        .player-token {
+            position: absolute; 
+            width: 100px; 
+            transform: translate(-50%, -50%);
+            transition: all 0.3s ease; 
+            z-index: 10;
+        }
+        .player-token:hover { z-index: 50; scale: 1.1; }
+
+        /* Agent Status Badge Styles */
+        .agent-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 30;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .agent-yes { background-color: rgba(16, 185, 129, 0.9); color: white; border: 1px solid #059669; }
+        .agent-no { background-color: rgba(239, 68, 68, 0.9); color: white; border: 1px solid #b91c1c; animation: pulse-border 2s infinite; }
+        
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="app" class="flex h-screen overflow-hidden text-slate-800 font-sans">
+
+    <aside class="w-64 bg-dark-900 text-white flex flex-col shadow-2xl z-20 shrink-0">
+        <div class="h-20 flex items-center gap-3 px-6 border-b border-slate-800 bg-dark-900">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg overflow-hidden shrink-0">
+                <img v-if="appLogo" :src="appLogo" class="w-full h-full object-cover">
+                <span v-else class="font-display font-bold text-lg">R</span>
+            </div>
+            <div>
+                <h1 class="font-display font-bold text-xl tracking-wide">RCL<span class="text-brand-400">Pro</span></h1>
+                <p class="text-[10px] text-slate-400 uppercase tracking-wider">Analytics & Agents</p>
+            </div>
+        </div>
+
+        <nav class="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
+            <template v-for="item in menuItems" :key="item.id">
+                <button @click="currentView = item.id"
+                    :class="['w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group relative', 
+                             currentView === item.id ? 'bg-brand-600 text-white shadow-lg shadow-brand-900/50' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                    <div v-if="currentView === item.id" class="absolute left-0 w-1 h-8 bg-accent-400 rounded-r-full"></div>
+                    <i :class="item.icon" class="w-6 text-center text-lg transition-colors group-hover:text-accent-400"></i>
+                    <span class="font-medium text-sm tracking-wide">{{ item.label }}</span>
+                </button>
+            </template>
+        </nav>
+
+        <div class="p-4 border-t border-slate-800 bg-dark-800">
+            <div class="flex items-center gap-3">
+                <div class="w-2 h-2 rounded-full" :class="totalPlayers > 0 ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></div>
+                <div class="text-xs text-slate-400">
+                    <span class="block font-semibold text-slate-200">{{ totalPlayers }} Jugadores</span>
+                    <span class="block">{{ Object.keys(leagues).length }} Ligas cargadas</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col bg-slate-50 relative overflow-hidden">
+        
+        <header class="h-20 bg-white shadow-sm flex items-center justify-between px-8 z-10 shrink-0">
+            <div>
+                <h2 class="text-2xl font-display font-bold text-slate-800">{{ currentTitle }}</h2>
+                <p class="text-sm text-slate-500">{{ currentSubtitle }}</p>
+            </div>
+            <div v-if="totalPlayers > 0" class="hidden md:flex gap-6">
+                <div class="text-right">
+                    <div class="text-xs text-slate-400 uppercase font-bold tracking-wider">Base de Datos</div>
+                    <div class="font-display font-bold text-brand-600">{{ totalPlayers }} <span class="text-slate-400 text-sm font-normal">perfiles</span></div>
+                </div>
+                <div class="h-10 w-px bg-slate-200"></div>
+                <div class="text-right">
+                    <div class="text-xs text-slate-400 uppercase font-bold tracking-wider">Oportunidades</div>
+                    <div class="font-display font-bold text-danger-500">{{ totalFreeAgents }} <span class="text-slate-400 text-sm font-normal">sin agente</span></div>
+                </div>
+                <div class="h-10 w-px bg-slate-200"></div>
+                <div class="text-right">
+                    <div class="text-xs text-slate-400 uppercase font-bold tracking-wider">Agenda</div>
+                    <div class="font-display font-bold text-accent-500">{{ shortlist.length }} <span class="text-slate-400 text-sm font-normal">guardados</span></div>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-6 md:p-8 relative scroll-smooth">
+            <transition name="fade" mode="out-in">
+                
+                <div v-if="currentView === 'import'" class="max-w-5xl mx-auto space-y-8 animate-fade-in-up">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                            <div class="p-1 bg-gradient-to-r from-brand-500 to-brand-400"></div>
+                            <div class="p-8 text-center flex-1">
+                                <div class="w-16 h-16 bg-brand-50 rounded-full flex items-center justify-center mx-auto mb-4 text-brand-500 text-2xl">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <h3 class="text-xl font-display font-bold text-slate-900 mb-2">1. Plantillas (Jugadores)</h3>
+                                <p class="text-slate-500 text-sm mb-6">Sube el Excel con datos. <br>Compatible con nuevas columnas: <b>Agente, Altura, Valor, Rating</b>.</p>
+                                
+                                <label class="block w-full border-2 border-dashed border-slate-300 rounded-xl p-6 cursor-pointer hover:border-brand-500 hover:bg-brand-50 transition-all group">
+                                    <input type="file" class="hidden" accept=".xlsx, .xls, .csv" @change="handleFileUpload">
+                                    <div class="flex flex-col items-center gap-2">
+                                        <i class="fas fa-cloud-upload-alt text-2xl text-slate-300 group-hover:text-brand-500 transition-colors"></i>
+                                        <span class="text-slate-600 font-medium text-sm">Seleccionar Excel Jugadores</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                            <div class="p-1 bg-gradient-to-r from-accent-500 to-accent-400"></div>
+                            <div class="p-8 text-center flex-1">
+                                <div class="w-16 h-16 bg-accent-50 rounded-full flex items-center justify-center mx-auto mb-4 text-accent-500 text-2xl">
+                                    <i class="fas fa-list-ol"></i>
+                                </div>
+                                <h3 class="text-xl font-display font-bold text-slate-900 mb-2">2. Clasificación (Ligas)</h3>
+                                <p class="text-slate-500 text-sm mb-6">Sube el Excel con la tabla de puntos, posición, PG, PP, etc.</p>
+                                
+                                <label class="block w-full border-2 border-dashed border-slate-300 rounded-xl p-6 cursor-pointer hover:border-accent-500 hover:bg-accent-50 transition-all group">
+                                    <input type="file" class="hidden" accept=".xlsx, .xls" @change="handleStandingsUpload">
+                                    <div class="flex flex-col items-center gap-2">
+                                        <i class="fas fa-file-excel text-2xl text-slate-300 group-hover:text-accent-500 transition-colors"></i>
+                                        <span class="text-slate-600 font-medium text-sm">Seleccionar Excel Clasificación</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="loading" class="text-center py-4 text-brand-600 font-medium animate-pulse">
+                        <i class="fas fa-circle-notch fa-spin mr-2"></i> Procesando e Integrando nuevas métricas...
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-6">
+                        <div class="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+                            <img v-if="appLogo" :src="appLogo" class="w-full h-full object-cover">
+                            <i v-else class="fas fa-image text-slate-300 text-2xl"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-slate-900">Personalizar Marca</h4>
+                            <p class="text-sm text-slate-500 mb-2">Sube el logo de tu agencia o club.</p>
+                            <input type="file" accept="image/*" @change="handleLogoUpload" class="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"/>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-else-if="currentView === 'players'" class="space-y-6">
+                    <div class="bg-white p-2 rounded-xl shadow-sm border border-slate-200 flex gap-2 max-w-2xl">
+                        <div class="flex-1 relative">
+                            <i class="fas fa-search absolute left-4 top-3.5 text-slate-400"></i>
+                            <input v-model="searchQuery" type="text" placeholder="Buscar por nombre, posición, equipo o agente..." class="w-full pl-10 pr-4 py-3 rounded-lg focus:bg-slate-50 focus:outline-none text-slate-700 placeholder-slate-400">
+                        </div>
+                        <div class="px-4 py-3 bg-slate-50 rounded-lg text-sm font-medium text-slate-500 border border-slate-100">
+                            {{ filteredPlayers.length }} resultados
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        <div v-for="player in paginatedPlayers" :key="player.id" @click="openPlayerProfile(player)" 
+                             class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden cursor-pointer card-hover group relative">
+                            
+                            <div :class="['agent-badge', hasAgent(player) ? 'agent-yes' : 'agent-no']">
+                                <i :class="hasAgent(player) ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'"></i>
+                                {{ hasAgent(player) ? 'CON AGENTE' : 'SIN AGENTE' }}
+                            </div>
+
+                            <button @click.stop="toggleShortlist(player)" class="absolute top-3 right-3 z-20 text-lg transition-transform hover:scale-110">
+                                <i :class="['fas fa-star', isShortlisted(player) ? 'text-accent-400 drop-shadow-sm' : 'text-slate-300 hover:text-accent-400']"></i>
+                            </button>
+
+                            <div class="absolute top-10 right-3 z-10 bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded uppercase font-bold tracking-wider">
+                                {{ player.leagueName }}
+                            </div>
+
+                            <div class="h-24 bg-dark-900 relative overflow-hidden">
+                                <div class="absolute inset-0 bg-gradient-to-t from-dark-900 to-transparent opacity-80"></div>
+                                <img :src="player['URL Escudo']" class="absolute right-0 top-0 w-32 h-32 object-contain opacity-10 transform translate-x-8 -translate-y-8 rotate-12">
+                            </div>
+                            <div class="px-5 pb-5 relative">
+                                <div class="w-20 h-20 rounded-full border-4 border-white bg-slate-200 -mt-10 overflow-hidden shadow-md relative z-10 group-hover:scale-105 transition-transform">
+                                    <img :src="player['URL Imagen']" @error="setDefaultImage" class="w-full h-full object-cover">
+                                </div>
+                                <div class="mt-3">
+                                    <h4 class="font-display font-bold text-lg text-slate-900 truncate leading-tight">{{ player.Nombre }}</h4>
+                                    <p class="text-xs font-medium text-brand-600 uppercase tracking-wide mb-1">{{ player['Equipo Actual'] }}</p>
+                                    <div class="flex items-center justify-between text-sm text-slate-500 mt-2">
+                                        <span>{{ player.Posición }}</span>
+                                        <span class="font-semibold text-slate-700">{{ player.Edad }} años</span>
+                                    </div>
+                                    <div class="mt-4 grid grid-cols-3 gap-2 py-3 border-t border-slate-100">
+                                        <div class="text-center">
+                                            <div class="text-[10px] text-slate-400 uppercase">{{ player.PJ !== undefined ? 'PJ' : 'Min' }}</div>
+                                            <div class="font-bold text-slate-800">{{ player.PJ !== undefined ? player.PJ : player['Minutos Jugados'] }}</div>
+                                        </div>
+                                        <div class="text-center border-l border-slate-100">
+                                            <div class="text-[10px] text-slate-400 uppercase">{{ player.isGK ? 'Encajados' : 'Goles' }}</div>
+                                            <div :class="['font-bold', player.isGK ? 'text-danger-500' : 'text-brand-600']">
+                                                {{ player.isGK ? player['Goles_Contra'] : player['Goles_Favor'] }}
+                                            </div>
+                                        </div>
+                                        <div class="text-center border-l border-slate-100">
+                                            <div class="text-[10px] text-slate-400 uppercase">{{ player.ValorMercado > 0 ? 'Valor' : 'Titular' }}</div>
+                                            <div class="font-bold text-slate-800 text-xs mt-1">
+                                                {{ player.ValorMercado > 0 ? formatMoney(player.ValorMercado) : player.Titular }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="player.Rating > 0" class="mt-2 text-center bg-slate-50 rounded py-1">
+                                        <span class="text-[10px] text-slate-400 uppercase font-bold mr-1">RATING:</span>
+                                        <span class="font-bold text-brand-600">{{ player.Rating }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-else-if="currentView === 'profile'" class="max-w-6xl mx-auto animate-fade-in-up">
+                    <div class="flex justify-between items-center mb-6 no-capture">
+                        <button @click="currentView = 'players'" class="flex items-center gap-2 text-slate-500 hover:text-brand-600 transition-colors font-medium">
+                            <i class="fas fa-arrow-left"></i> Volver al listado
+                        </button>
+                        
+                        <button @click="generateReport" class="bg-dark-900 hover:bg-black text-white px-5 py-2.5 rounded-lg font-bold shadow-lg flex items-center gap-2 transition-all">
+                            <i class="fas fa-camera"></i> Descargar Ficha Técnica
+                        </button>
+                    </div>
+
+                    <div id="player-report-card" class="bg-slate-50 p-4 lg:p-8 rounded-3xl relative">
+                        
+                        <div class="flex items-center gap-3 mb-6 opacity-80">
+                            <div class="w-8 h-8 rounded bg-brand-600 flex items-center justify-center text-white font-bold text-xs">R</div>
+                            <span class="text-sm font-bold text-slate-400 uppercase tracking-widest">RCLPro Scouting Report v2.4</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                            <div class="lg:col-span-4 space-y-6">
+                                <div class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden relative">
+                                    <div class="h-32 bg-gradient-to-br from-dark-800 to-dark-900 relative">
+                                        <div :class="['absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold uppercase shadow-sm', hasAgent(selectedPlayer) ? 'bg-green-500 text-white' : 'bg-red-500 text-white animate-pulse']">
+                                            {{ hasAgent(selectedPlayer) ? 'Agente: SI' : 'Agente: NO' }}
+                                        </div>
+                                    </div>
+                                    <div class="px-8 pb-8 text-center relative">
+                                        <div class="w-32 h-32 mx-auto -mt-16 rounded-full border-[6px] border-white shadow-xl overflow-hidden bg-white">
+                                            <img :src="selectedPlayer['URL Imagen']" @error="setDefaultImage" class="w-full h-full object-cover">
+                                        </div>
+                                        
+                                        <div class="mt-4 flex items-center justify-center gap-2">
+                                            <h2 class="text-2xl font-display font-bold text-slate-900">{{ selectedPlayer.Nombre }}</h2>
+                                            <button @click="toggleShortlist(selectedPlayer)" class="text-2xl transition-transform hover:scale-110 focus:outline-none no-capture">
+                                                <i :class="['fas fa-star', isShortlisted(selectedPlayer) ? 'text-accent-400' : 'text-slate-200 hover:text-accent-400']"></i>
+                                            </button>
+                                        </div>
+
+                                        <div class="flex flex-wrap justify-center gap-2 mt-3">
+                                            <div class="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full text-sm font-medium text-slate-600">
+                                                <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+                                                {{ selectedPlayer.Posición }}
+                                            </div>
+                                            <div v-if="selectedPlayer.Dorsal" class="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 rounded-full text-sm font-medium text-slate-600">
+                                                #{{ selectedPlayer.Dorsal }}
+                                            </div>
+                                            <div v-if="selectedPlayer.Nacionalidad" class="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 rounded-full text-sm font-medium text-slate-600 uppercase">
+                                                {{ selectedPlayer.Nacionalidad }}
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-6 flex items-center justify-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                            <img :src="selectedPlayer['URL Escudo']" class="w-12 h-12 object-contain">
+                                            <div class="text-left">
+                                                <div class="text-xs text-slate-400 uppercase font-bold">Club Actual</div>
+                                                <div class="font-bold text-slate-800 leading-tight">{{ selectedPlayer['Equipo Actual'] }}</div>
+                                            </div>
+                                        </div>
+
+                                        <div v-if="selectedPlayer.ValorMercado || selectedPlayer.Altura || selectedPlayer.Rating" class="mt-4 bg-slate-50 rounded-xl p-4 border border-slate-100 text-left space-y-2">
+                                            <div v-if="selectedPlayer.ValorMercado > 0" class="flex justify-between items-center">
+                                                <span class="text-xs font-bold text-slate-400 uppercase">Valor Mercado</span>
+                                                <span class="text-sm font-bold text-green-600">{{ formatMoney(selectedPlayer.ValorMercado) }}</span>
+                                            </div>
+                                            <div v-if="selectedPlayer.Altura > 0" class="flex justify-between items-center">
+                                                <span class="text-xs font-bold text-slate-400 uppercase">Altura (cm)</span>
+                                                <span class="text-sm font-bold text-slate-700">{{ selectedPlayer.Altura }} cm</span>
+                                            </div>
+                                            <div v-if="selectedPlayer.Rating > 0" class="flex justify-between items-center">
+                                                <span class="text-xs font-bold text-slate-400 uppercase">Rating Global</span>
+                                                <div class="flex items-center gap-1">
+                                                    <span class="text-sm font-bold text-brand-600">{{ selectedPlayer.Rating }}</span>
+                                                    <div class="w-16 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                                        <div class="h-full bg-brand-500" :style="{ width: selectedPlayer.Rating + '%' }"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-6 space-y-3 no-capture">
+                                            <a :href="selectedPlayer['URL Ficha']" target="_blank" class="flex items-center justify-center w-full py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-brand-500/30">
+                                                Ver Ficha Técnica <i class="fas fa-external-link-alt ml-2 text-xs"></i>
+                                            </a>
+                                            <button @click="addToCompare(selectedPlayer)" class="flex items-center justify-center w-full py-3 bg-white border-2 border-brand-100 text-brand-600 hover:border-brand-500 hover:bg-brand-50 rounded-xl font-bold transition-all">
+                                                <i class="fas fa-radar ml-2 mr-2"></i> Añadir a Comparador
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="lg:col-span-8 space-y-6">
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 text-center">
+                                        <div :class="['text-3xl font-display font-bold', selectedPlayer.isGK ? 'text-danger-500' : 'text-brand-500']">
+                                            {{ selectedPlayer.isGK ? selectedPlayer['Goles_Contra'] : selectedPlayer['Goles_Favor'] }}
+                                        </div>
+                                        <div class="text-xs text-slate-400 uppercase font-bold tracking-wider mt-1">
+                                            {{ selectedPlayer.isGK ? 'Goles Encajados' : 'Goles a Favor' }}
+                                        </div>
+                                    </div>
+                                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 text-center">
+                                        <div class="text-3xl font-display font-bold text-slate-800">{{ selectedPlayer['Minutos Jugados'] }}</div>
+                                        <div class="text-xs text-slate-400 uppercase font-bold tracking-wider mt-1">
+                                            {{ selectedPlayer.PJ !== undefined ? 'PJ: ' + selectedPlayer.PJ : 'Minutos' }}
+                                        </div>
+                                    </div>
+                                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 text-center">
+                                        <div class="text-3xl font-display font-bold text-slate-800">{{ selectedPlayer.Titular }}</div>
+                                        <div class="text-xs text-slate-400 uppercase font-bold tracking-wider mt-1">Titular</div>
+                                    </div>
+                                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 text-center">
+                                        <div class="text-3xl font-display font-bold text-slate-800">{{ selectedPlayer.Edad }}</div>
+                                        <div class="text-xs text-slate-400 uppercase font-bold tracking-wider mt-1">Edad</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-brand-50 border border-brand-100 rounded-2xl p-6 relative overflow-hidden">
+                                    <div class="absolute right-0 top-0 p-4 opacity-5">
+                                        <i class="fas fa-flask text-8xl text-brand-900"></i>
+                                    </div>
+                                    <h3 class="text-lg font-bold text-brand-900 mb-6 flex items-center gap-2 relative z-10">
+                                        <i class="fas fa-flask"></i> Data Lab: Métricas Avanzadas
+                                    </h3>
+                                    <div class="grid grid-cols-3 gap-6 relative z-10">
+                                        <div class="text-center">
+                                            <div :class="['text-3xl font-display font-bold', selectedPlayer.isGK ? 'text-red-500' : 'text-brand-600']">
+                                                {{ selectedPlayer.isGK ? selectedPlayer['EncajadosPer90'] : selectedPlayer['GolesPer90'] }}
+                                            </div>
+                                            <div class="text-xs text-brand-800 uppercase font-bold tracking-wider mt-1">
+                                                {{ selectedPlayer.isGK ? 'Encajados p/90' : 'Goles p/90' }}
+                                            </div>
+                                        </div>
+                                        <div class="text-center border-l border-brand-200">
+                                            <div class="text-3xl font-display font-bold text-brand-600">{{ getTitularPercentage(selectedPlayer) }}%</div>
+                                            <div class="text-xs text-brand-800 uppercase font-bold tracking-wider mt-1">% Titularidad</div>
+                                        </div>
+                                        <div class="text-center border-l border-brand-200">
+                                            <div class="text-3xl font-display font-bold text-brand-600">{{ selectedPlayer.Asistencias }}</div>
+                                            <div class="text-xs text-brand-800 uppercase font-bold tracking-wider mt-1">Asistencias</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+                                    <h3 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                                        <i class="fas fa-chart-bar text-brand-500"></i> Rendimiento vs Liga
+                                    </h3>
+                                    <div class="space-y-6">
+                                        <div v-for="stat in statMetrics" :key="stat.key">
+                                            <div v-if="stat.max > 0" class="mb-2">
+                                                <div class="flex justify-between text-sm mb-2">
+                                                    <span class="font-medium text-slate-600">{{ stat.label }}</span>
+                                                    <span class="font-bold text-slate-900">{{ selectedPlayer[stat.key] || 0 }} <span class="text-slate-400 font-normal text-xs">/ máx {{ stat.max }}</span></span>
+                                                </div>
+                                                <div class="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                    <div class="h-full bg-gradient-to-r from-brand-400 to-brand-600 rounded-full relative" :style="{ width: getPercentage(selectedPlayer[stat.key], stat.max) + '%' }">
+                                                        <div class="absolute right-0 top-0 bottom-0 w-px bg-white/50"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                        <i class="fas fa-edit text-accent-500"></i> Informe Técnico / Notas
+                                    </h3>
+                                    <textarea v-model="playerNotes" class="w-full h-32 p-4 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none transition-all text-sm leading-relaxed" placeholder="Escribe aquí tu análisis cualitativo del jugador (fortalezas, debilidades, personalidad...). Este texto aparecerá en el informe descargable."></textarea>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-else-if="currentView === 'matchday'" class="space-y-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                            <i class="fas fa-handshake text-brand-500"></i> Configurar Partido
+                        </h3>
+                        <div class="flex flex-col md:flex-row gap-6 items-center">
+                            <div class="flex-1 w-full">
+                                <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Local</label>
+                                <select v-model="matchHome" class="w-full border border-slate-300 rounded-xl p-3 bg-slate-50 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                                    <option value="">Seleccionar Equipo Local...</option>
+                                    <option v-for="club in uniqueClubs" :key="club.name" :value="club">{{ club.name }}</option>
+                                </select>
+                            </div>
+                            <div class="text-2xl font-display font-bold text-slate-300">VS</div>
+                            <div class="flex-1 w-full">
+                                <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Visitante</label>
+                                <select v-model="matchAway" class="w-full border border-slate-300 rounded-xl p-3 bg-slate-50 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                                    <option value="">Seleccionar Equipo Visitante...</option>
+                                    <option v-for="club in uniqueClubs" :key="club.name" :value="club">{{ club.name }}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="matchHome && matchAway" class="animate-fade-in-up space-y-6">
+                        <div class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+                            <div class="h-2 bg-gradient-to-r from-brand-500 via-slate-200 to-accent-500"></div>
+                            <div class="p-8">
+                                <div class="flex justify-between items-center text-center">
+                                    <div class="w-1/3 flex flex-col items-center">
+                                        <img :src="matchHome.logo" class="w-24 h-24 object-contain mb-3 drop-shadow-md">
+                                        <h2 class="text-xl font-bold leading-tight">{{ matchHome.name }}</h2>
+                                        <div v-if="matchHome.standingData" class="mt-2 inline-block bg-brand-100 text-brand-700 px-3 py-1 rounded-full text-sm font-bold">
+                                            {{ matchHome.standingData.Puntos }} pts ({{ matchHome.standingData.Posición }}º)
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="w-1/3 space-y-4 px-4">
+                                         <div class="bg-slate-50 rounded-xl p-4 space-y-3">
+                                            <div class="flex justify-between text-sm items-center">
+                                                <span class="font-bold">{{ matchHome.stats.avgAge }}</span>
+                                                <span class="text-xs text-slate-400 uppercase">Edad Media</span>
+                                                <span class="font-bold">{{ matchAway.stats.avgAge }}</span>
+                                            </div>
+                                            <div class="w-full bg-slate-200 h-1 rounded-full relative">
+                                                <div class="absolute left-1/2 h-full w-px bg-slate-400"></div>
+                                            </div>
+                                            <div class="flex justify-between text-sm items-center">
+                                                <span class="font-bold text-brand-600">{{ matchHome.stats.totalGoalsFor }}</span>
+                                                <span class="text-xs text-slate-400 uppercase">Goles Favor</span>
+                                                <span class="font-bold text-accent-600">{{ matchAway.stats.totalGoalsFor }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="w-1/3 flex flex-col items-center">
+                                        <img :src="matchAway.logo" class="w-24 h-24 object-contain mb-3 drop-shadow-md">
+                                        <h2 class="text-xl font-bold leading-tight">{{ matchAway.name }}</h2>
+                                        <div v-if="matchAway.standingData" class="mt-2 inline-block bg-accent-100 text-accent-700 px-3 py-1 rounded-full text-sm font-bold">
+                                            {{ matchAway.standingData.Puntos }} pts ({{ matchAway.standingData.Posición }}º)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                     </div>
+                </div>
+
+                <div v-else-if="currentView === 'agenda'" class="space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+                         <div>
+                            <h3 class="text-2xl font-display font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fas fa-star text-accent-500"></i> Mi Agenda
+                            </h3>
+                            <p class="text-slate-500 text-sm">Lista de seguimiento persistente (localStorage)</p>
+                         </div>
+                         <button @click="exportShortlist" v-if="shortlist.length > 0" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-sm transition-colors">
+                             <i class="fas fa-file-excel"></i> Exportar Agenda
+                         </button>
+                    </div>
+                    <div v-if="shortlist.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                         <div v-for="player in shortlist" :key="player.id" @click="openPlayerProfile(player)" 
+                             class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden cursor-pointer card-hover group relative">
+                            <div :class="['agent-badge', hasAgent(player) ? 'agent-yes' : 'agent-no']">
+                                <i :class="hasAgent(player) ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'"></i>
+                                {{ hasAgent(player) ? 'AGENTE' : 'SIN AGENTE' }}
+                            </div>
+                            <button @click.stop="toggleShortlist(player)" class="absolute top-3 right-3 z-20 text-lg transition-transform hover:scale-110">
+                                <i class="fas fa-star text-accent-400 drop-shadow-sm"></i>
+                            </button>
+                            <div class="h-24 bg-dark-900 relative overflow-hidden">
+                                <div class="absolute inset-0 bg-gradient-to-t from-dark-900 to-transparent opacity-80"></div>
+                                <img :src="player['URL Escudo']" class="absolute right-0 top-0 w-32 h-32 object-contain opacity-10 transform translate-x-8 -translate-y-8 rotate-12">
+                            </div>
+                            <div class="px-5 pb-5 relative">
+                                <div class="w-20 h-20 rounded-full border-4 border-white bg-slate-200 -mt-10 overflow-hidden shadow-md relative z-10">
+                                    <img :src="player['URL Imagen']" @error="setDefaultImage" class="w-full h-full object-cover">
+                                </div>
+                                <div class="mt-3">
+                                    <h4 class="font-display font-bold text-lg text-slate-900 truncate">{{ player.Nombre }}</h4>
+                                    <p class="text-xs font-medium text-brand-600 uppercase tracking-wide">{{ player['Equipo Actual'] }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="text-center py-20 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                        No hay jugadores guardados.
+                    </div>
+                </div>
+
+                <div v-else-if="currentView === 'clubs'" class="space-y-6">
+                    <input v-model="clubSearch" type="text" placeholder="Buscar Club..." class="w-full px-5 py-4 rounded-xl border border-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div v-for="club in filteredClubs" :key="club.name" @click="openClubProfile(club)" 
+                             class="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg border border-slate-100 cursor-pointer flex items-center gap-4 transition-all group">
+                            <div class="w-16 h-16 p-2 bg-slate-50 rounded-lg flex items-center justify-center shrink-0">
+                                <img :src="club.logo" class="w-full h-full object-contain group-hover:scale-110 transition-transform">
+                            </div>
+                            <div class="overflow-hidden">
+                                <h3 class="font-bold text-lg text-slate-900 truncate">{{ club.name }}</h3>
+                                <div class="flex items-center gap-3 mt-1">
+                                    <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{{ club.players.length }} Jugadores</span>
+                                    <span class="text-xs text-brand-600 font-bold">{{ club.stats.totalGoalsFor }} GF</span>
+                                </div>
+                            </div>
+                            <i class="fas fa-chevron-right ml-auto text-slate-300 group-hover:text-brand-500 transition-colors"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-else-if="currentView === 'clubProfile'" class="space-y-6 animate-fade-in-up">
+                    <button @click="currentView = 'clubs'" class="text-slate-500 hover:text-brand-600 font-medium flex items-center gap-2">
+                        <i class="fas fa-arrow-left"></i> Volver a Clubes
+                    </button>
+                    <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
+                        <div class="p-8 bg-dark-900 text-white flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
+                             <div class="w-32 h-32 bg-white rounded-2xl p-4 flex items-center justify-center shadow-2xl relative z-10">
+                                <img :src="selectedClub.logo" class="w-full h-full object-contain">
+                            </div>
+                            <div class="text-center md:text-left flex-1 relative z-10">
+                                <h1 class="text-4xl font-display font-bold">{{ selectedClub.name }}</h1>
+                                </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
+                                            <th class="p-4 font-bold uppercase tracking-wider">Jugador</th>
+                                            <th class="p-4 font-bold uppercase tracking-wider">Posición</th>
+                                            <th class="p-4 font-bold uppercase tracking-wider text-center">Agente</th>
+                                            <th class="p-4 font-bold uppercase tracking-wider text-center">Valor</th>
+                                            <th class="p-4 font-bold uppercase tracking-wider text-center">Goles</th>
+                                            <th class="p-4 font-bold uppercase tracking-wider text-center">Asist</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="text-sm">
+                                        <tr v-for="p in selectedClub.players" :key="p.id" @click="openPlayerProfile(p)" 
+                                            class="hover:bg-brand-50/50 cursor-pointer border-b border-slate-50 last:border-0 transition-colors">
+                                            <td class="p-4 font-medium text-slate-900 flex items-center gap-3">
+                                                <img :src="p['URL Imagen']" @error="setDefaultImage" class="w-8 h-8 rounded-full object-cover ring-2 ring-white shadow-sm">
+                                                {{ p.Nombre }}
+                                            </td>
+                                            <td class="p-4 text-slate-500">{{ p.Posición }}</td>
+                                            <td class="p-4 text-center">
+                                                <span v-if="hasAgent(p)" class="w-3 h-3 rounded-full bg-green-500 inline-block" title="Con Agente"></span>
+                                                <span v-else class="w-3 h-3 rounded-full bg-red-500 inline-block animate-pulse" title="Sin Agente"></span>
+                                            </td>
+                                            <td class="p-4 text-center text-slate-600">{{ p.ValorMercado > 0 ? formatMoney(p.ValorMercado) : '-' }}</td>
+                                            <td class="p-4 text-center font-bold">{{ p.isGK ? 0 : p.Goles_Favor }}</td>
+                                            <td class="p-4 text-center text-slate-500">{{ p.Asistencias }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                        </div>
+                     </div>
+                </div>
+
+                <div v-else-if="currentView === 'compare'" class="h-full flex flex-col space-y-6">
+                    <div class="flex justify-between items-end shrink-0">
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800">Comparador de Rendimiento & Mercado</h3>
+                            <p class="text-sm text-slate-500">Añade hasta 3 jugadores. Gráfico incluye Rating y Asistencias si existen.</p>
+                        </div>
+                        <button @click="comparisonList = []" v-if="comparisonList.length > 0" class="text-red-500 text-sm font-medium hover:bg-red-50 px-3 py-1 rounded transition-colors">Limpiar todo</button>
+                    </div>
+                    <div class="flex-1 flex flex-col lg:flex-row gap-8 min-h-0">
+                        <div class="w-full lg:w-80 space-y-4 overflow-y-auto pr-2">
+                             <div v-if="comparisonList.length === 0" class="p-8 border-2 border-dashed border-slate-300 rounded-2xl text-center text-slate-400 bg-slate-50">
+                                <i class="fas fa-plus-circle text-4xl mb-3 opacity-50"></i>
+                                <p class="text-sm">Selecciona jugadores para comenzar</p>
+                            </div>
+                            <transition-group name="list">
+                                <div v-for="(p, index) in comparisonList" :key="p.id" class="bg-white p-4 rounded-xl shadow-sm flex items-center gap-3 border-l-4 relative group" :style="{ borderColor: chartColors[index].border }">
+                                    <img :src="p['URL Imagen']" @error="setDefaultImage" class="w-12 h-12 rounded-full object-cover border border-slate-100">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-bold text-slate-900 truncate">{{ p.Nombre }}</div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                             <span v-if="hasAgent(p)" class="text-green-600 font-bold">Agente SI</span>
+                                             <span v-else class="text-red-500 font-bold">Agente NO</span>
+                                             <span v-if="p.ValorMercado > 0" class="text-slate-500">| {{ formatMoney(p.ValorMercado) }}</span>
+                                        </div>
+                                    </div>
+                                    <button @click="removeFromCompare(index)" class="absolute top-2 right-2 text-slate-300 hover:text-red-500 transition-colors p-1"><i class="fas fa-times"></i></button>
+                                </div>
+                            </transition-group>
+                             <button v-if="comparisonList.length > 0 && comparisonList.length < 3" @click="currentView = 'players'" class="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-brand-500 hover:text-brand-500 hover:bg-white transition-all font-medium text-sm">
+                                <i class="fas fa-plus mr-2"></i> Añadir otro jugador
+                            </button>
+                        </div>
+                        <div class="flex-1 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-center relative min-h-[400px]">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-else-if="currentView === 'filter'" class="space-y-6">
+                     <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-filter text-brand-500"></i> Filtros de Datos (Con Agente/Sin Agente)</h3>
+                            <div class="flex gap-2">
+                                <button @click="resetFilters" class="text-sm text-slate-400 hover:text-red-500 font-medium px-3 transition-colors">Limpiar</button>
+                                <button @click="addFilter" class="bg-brand-50 text-brand-600 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-100 transition-colors">+ Filtro</button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div v-for="(filter, index) in filters" :key="index" class="flex flex-wrap gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-100 animate-fade-in-up">
+                                <select v-model="filter.column" @change="resetFilterValues(filter)" class="border border-slate-200 p-2 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 w-40">
+                                    <option value="">Columna...</option>
+                                    <option value="AgentStatus">Tiene Agente</option>
+                                    <option v-for="header in headers" :key="header" :value="header">{{ header }}</option>
+                                </select>
+                                
+                                <select v-if="filter.column" v-model="filter.operator" class="border border-slate-200 p-2 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 w-32">
+                                    <template v-if="filter.column === 'AgentStatus'">
+                                        <option value="eq">Es igual a</option>
+                                    </template>
+                                    <template v-else-if="isNumericColumn(filter.column)">
+                                        <option value="gt">Mayor que (>)</option>
+                                        <option value="lt">Menor que (<)</option>
+                                        <option value="eq">Igual a (=)</option>
+                                        <option value="bt">Entre (Rango)</option>
+                                    </template>
+                                    <template v-else>
+                                        <option value="contains">Contiene</option>
+                                        <option value="eq">Es igual a</option>
+                                    </template>
+                                </select>
+
+                                <div class="flex gap-2 flex-1">
+                                    <template v-if="filter.column === 'AgentStatus'">
+                                        <select v-model="filter.value" class="border border-slate-200 p-2 rounded-lg text-sm w-full bg-white">
+                                            <option value="SI">SI (Tiene Agente)</option>
+                                            <option value="NO">NO (Libre)</option>
+                                        </select>
+                                    </template>
+                                    <template v-else>
+                                        <input v-model="filter.value" :type="isNumericColumn(filter.column) ? 'number' : 'text'" placeholder="Valor..." class="border border-slate-200 p-2 rounded-lg text-sm w-full bg-white focus:outline-none focus:border-brand-500">
+                                        <input v-if="filter.operator === 'bt'" v-model="filter.value2" type="number" placeholder="Máx..." class="border border-slate-200 p-2 rounded-lg text-sm w-24 bg-white focus:outline-none focus:border-brand-500">
+                                    </template>
+                                </div>
+                                <button @click="removeFilter(index)" class="text-slate-400 hover:text-red-500 p-2"><i class="fas fa-trash-alt"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-slate-50 text-slate-600 uppercase font-bold text-xs">
+                                    <tr>
+                                        <th class="p-4">Nombre</th>
+                                        <th class="p-4 text-center">Agente</th>
+                                        <th class="p-4 text-center">Valor</th>
+                                        <th class="p-4 text-center">Asist</th>
+                                        <th class="p-4 text-center">Rating</th>
+                                        <th class="p-4 text-center">Goles/Enc p90</th>
+                                        <th class="p-4 text-center"></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    <tr v-for="player in filteredTablePlayers.slice(0, 50)" :key="player.id" class="hover:bg-slate-50 transition-colors">
+                                        <td class="p-4 font-medium text-slate-900">
+                                            {{ player.Nombre }} <br>
+                                            <span class="text-xs text-slate-400 font-normal">{{ player['Equipo Actual'] }}</span>
+                                        </td>
+                                        <td class="p-4 text-center">
+                                            <span v-if="hasAgent(player)" class="text-green-600 font-bold text-xs bg-green-50 px-2 py-1 rounded">SI</span>
+                                            <span v-else class="text-red-500 font-bold text-xs bg-red-50 px-2 py-1 rounded animate-pulse">NO</span>
+                                        </td>
+                                        <td class="p-4 text-center text-slate-600">{{ formatMoney(player.ValorMercado) }}</td>
+                                        <td class="p-4 text-center text-slate-600">{{ player.Asistencias }}</td>
+                                        <td class="p-4 text-center font-bold text-brand-600">{{ player.Rating || '-' }}</td>
+                                        <td class="p-4 text-center">
+                                            <span :class="['font-bold', player.isGK ? 'text-red-500' : 'text-brand-600']">
+                                                {{ player.isGK ? player['EncajadosPer90'] : player['GolesPer90'] }}
+                                            </span>
+                                        </td>
+                                        <td class="p-4 text-center">
+                                            <button @click="openPlayerProfile(player)" class="text-brand-500 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 p-2 rounded-lg transition-colors"><i class="fas fa-eye"></i></button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-else-if="currentView === 'leagues'" class="space-y-6">
+                    <div v-for="(leagueData, leagueName) in groupedLeagues" :key="leagueName" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="bg-slate-50 p-5 flex justify-between items-center cursor-pointer border-b border-slate-100 hover:bg-slate-100 transition-colors" @click="leagueData.expanded = !leagueData.expanded">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-brand-500 border border-slate-100">
+                                    <i class="fas fa-trophy"></i>
+                                </div>
+                                <h3 class="font-bold text-lg text-slate-800">{{ leagueName }}</h3>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <span class="text-sm text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200">{{ leagueData.clubs.length }} Clubes</span>
+                                <i :class="['fas text-slate-400 transition-transform duration-300', leagueData.expanded ? 'fa-chevron-up rotate-180' : 'fa-chevron-down']"></i>
+                            </div>
+                        </div>
+                        <transition name="fade">
+                            <div v-if="leagueData.expanded" class="p-0">
+                                <div v-if="allStandings[leagueName] && allStandings[leagueName].length > 0" class="overflow-x-auto">
+                                    <table class="w-full text-sm text-left">
+                                        <thead class="bg-slate-100 text-slate-600 font-bold text-xs uppercase">
+                                            <tr>
+                                                <th class="p-3 text-center w-12">Pos</th>
+                                                <th class="p-3">Equipo</th>
+                                                <th class="p-3 text-center font-bold text-slate-900">PTS</th>
+                                                <th class="p-3 text-center hidden md:table-cell">PJ</th>
+                                                <th class="p-3 text-center hidden md:table-cell">PG</th>
+                                                <th class="p-3 text-center hidden md:table-cell">GF</th>
+                                                <th class="p-3 text-right"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="team in allStandings[leagueName]" :key="team.Equipo" 
+                                                @click="openClubFromStanding(team.Equipo)"
+                                                class="standings-row border-b border-slate-50 last:border-0">
+                                                <td class="p-3 text-center font-bold">
+                                                    <div :class="['pos-badge mx-auto', team['Posición'] == 1 ? 'pos-1' : team['Posición'] == 2 ? 'pos-2' : 'bg-slate-100 text-slate-500']">{{ team['Posición'] }}</div>
+                                                </td>
+                                                <td class="p-3 font-medium text-slate-900 flex items-center gap-3">
+                                                    <img :src="team['URL Escudo']" class="w-8 h-8 object-contain">
+                                                    {{ team.Equipo }}
+                                                </td>
+                                                <td class="p-3 text-center font-bold text-lg text-brand-600">{{ team.Puntos }}</td>
+                                                <td class="p-3 text-center text-slate-500 hidden md:table-cell">{{ team.PJ }}</td>
+                                                <td class="p-3 text-center text-green-600 hidden md:table-cell">{{ team.PG }}</td>
+                                                <td class="p-3 text-center text-slate-500 hidden md:table-cell">{{ team.GF }}</td>
+                                                <td class="p-3 text-right text-brand-500"><i class="fas fa-chevron-right"></i></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div v-else class="p-6">
+                                    <div class="text-center text-slate-400 text-sm mt-4 italic">* Sube archivo de clasificación.</div>
+                                </div>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+
+                <div v-else-if="currentView === 'shadowteam'" class="space-y-6 h-full flex flex-col">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="text-xl font-bold flex items-center gap-2 text-slate-800"><i class="fas fa-chess-board text-brand-500"></i> Shadow Team</h3>
+                            <p class="text-slate-500 text-sm">Puntos Rojos = Sin Agente (Oportunidad).</p>
+                        </div>
+                        <button @click="clearShadowTeam" class="text-red-500 text-sm font-medium hover:underline">Limpiar Todo</button>
+                    </div>
+
+                    <div class="flex-1 bg-dark-900 rounded-2xl p-6 relative shadow-inner overflow-hidden flex justify-center items-center border border-slate-700">
+                        <div class="soccer-pitch w-full max-w-4xl h-full rounded-xl border-4 border-white/80 relative shadow-2xl">
+                            <div class="center-circle"></div>
+                            <div class="half-line"></div>
+                            <div class="penalty-area penalty-area-top"></div>
+                            <div class="penalty-area penalty-area-bottom"></div>
+
+                            <div v-for="(slot, index) in shadowTeam" :key="slot.id" 
+                                 class="player-token flex flex-col items-center cursor-pointer group"
+                                 :style="{ top: slot.top, left: slot.left }"
+                                 @click="openShadowPicker(index)">
+                                
+                                <div v-if="!slot.player" class="w-12 h-12 rounded-full bg-white/20 border-2 border-dashed border-white/50 flex items-center justify-center text-white hover:bg-white/40 transition-colors">
+                                    <i class="fas fa-plus"></i>
+                                </div>
+                                <div v-if="!slot.player" class="mt-1 bg-black/50 text-white text-[10px] px-2 rounded font-bold uppercase backdrop-blur-sm">{{ slot.label }}</div>
+
+                                <div v-else class="relative flex flex-col items-center">
+                                    <div class="w-16 h-16 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-200 relative z-10">
+                                        <img :src="slot.player['URL Imagen']" @error="setDefaultImage" class="w-full h-full object-cover">
+                                    </div>
+                                    <div :class="['absolute top-0 right-0 w-4 h-4 rounded-full border-2 border-white z-20', hasAgent(slot.player) ? 'bg-green-500' : 'bg-red-500 animate-pulse']" :title="hasAgent(slot.player) ? 'Con Agente' : 'SIN AGENTE'"></div>
+                                    
+                                    <div class="mt-[-8px] z-20 bg-white shadow-md rounded px-2 py-1 text-center min-w-[100px]">
+                                        <div class="font-bold text-xs text-slate-900 truncate max-w-[90px]">{{ slot.player.Nombre }}</div>
+                                        <div class="text-[9px] text-slate-500 flex justify-center gap-2">
+                                            <span>{{ slot.player.Edad }}a</span>
+                                            <span :class="slot.player.isGK ? 'text-red-500' : 'text-brand-600'">
+                                                {{ slot.player.Rating ? 'R:'+slot.player.Rating : (slot.player.isGK ? slot.player.EncajadosPer90 : slot.player.GolesPer90) }} 
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <button @click.stop="removeShadowPlayer(index)" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow z-30 hover:scale-110">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="showShadowPicker" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col overflow-hidden animate-fade-in-up">
+                            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <h3 class="font-bold text-slate-800">Seleccionar {{ shadowTeam[activeShadowIndex].label }}</h3>
+                                <button @click="showShadowPicker = false" class="text-slate-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+                            </div>
+                            <div class="p-4 border-b border-slate-100">
+                                <input v-model="shadowSearch" type="text" placeholder="Buscar jugador..." class="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-brand-500 outline-none">
+                            </div>
+                            <div class="flex-1 overflow-y-auto p-2 space-y-1">
+                                <div v-for="p in filteredShadowPlayers" :key="p.id" @click="selectShadowPlayer(p)" class="flex items-center gap-3 p-3 rounded-xl hover:bg-brand-50 cursor-pointer border border-transparent hover:border-brand-200 transition-all">
+                                    <img :src="p['URL Imagen']" @error="setDefaultImage" class="w-10 h-10 rounded-full object-cover bg-gray-200">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-bold text-sm text-slate-900 truncate flex items-center gap-2">
+                                            {{ p.Nombre }}
+                                            <span v-if="!hasAgent(p)" class="w-2 h-2 rounded-full bg-red-500" title="Sin Agente"></span>
+                                        </div>
+                                        <div class="text-xs text-slate-500 truncate">{{ p['Equipo Actual'] }} | {{ p.Posición }}</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="font-bold text-brand-600 text-sm">{{ p.Rating ? p.Rating : (p.isGK ? p.EncajadosPer90 : p.GolesPer90) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-else-if="currentView === 'globalstats'" class="space-y-6 animate-fade-in-up">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div>
+                                <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                    <i class="fas fa-globe text-brand-500"></i> Global Stats Hub
+                                </h3>
+                                <p class="text-slate-500 text-sm">Ahora incluye filtros de Rating y Valor.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-3">
+                                <select v-model="globalFilterLeague" class="border p-2 rounded-lg text-sm bg-slate-50 font-medium text-slate-700 outline-none focus:ring-1 focus:ring-brand-500">
+                                    <option value="">Todas las Ligas</option>
+                                    <option v-for="(v, k) in leagues" :key="k" :value="k">{{ k }}</option>
+                                </select>
+                                <select v-model="globalMetric" class="border p-2 rounded-lg text-sm bg-slate-50 font-bold text-brand-700 outline-none focus:ring-1 focus:ring-brand-500">
+                                    <option value="Total Goles">Goles Totales</option>
+                                    <option value="Asistencias">Asistencias</option>
+                                    <option value="ValorMercado">Mayor Valor (€)</option>
+                                    <option value="Rating">Mejor Rating</option>
+                                    <option value="Edad">Más Jóvenes</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-slate-50 text-slate-600 font-bold text-xs uppercase">
+                                    <tr>
+                                        <th class="p-3 w-10 text-center">#</th>
+                                        <th class="p-3">Jugador</th>
+                                        <th class="p-3 hidden md:table-cell">Liga</th>
+                                        <th class="p-3 hidden md:table-cell">Equipo</th>
+                                        <th class="p-3 text-center">Agente</th>
+                                        <th class="p-3 text-right font-bold text-brand-700">{{ globalMetric }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-50">
+                                    <tr v-for="(p, i) in globalRankings" :key="p.id" @click="openPlayerProfile(p)" class="hover:bg-slate-50 cursor-pointer transition-colors">
+                                        <td class="p-3 text-center font-bold text-slate-400">{{ i + 1 }}</td>
+                                        <td class="p-3 flex items-center gap-3">
+                                            <img :src="p['URL Imagen']" @error="setDefaultImage" class="w-8 h-8 rounded-full object-cover bg-slate-100">
+                                            <div>
+                                                <div class="font-bold text-slate-900">{{ p.Nombre }}</div>
+                                                <div class="text-xs text-slate-500">{{ p.Posición }}</div>
+                                            </div>
+                                        </td>
+                                        <td class="p-3 hidden md:table-cell text-xs"><span class="bg-slate-100 px-2 py-1 rounded">{{ p.leagueName }}</span></td>
+                                        <td class="p-3 hidden md:table-cell text-slate-600">{{ p['Equipo Actual'] }}</td>
+                                        <td class="p-3 text-center">
+                                            <span :class="['w-2 h-2 rounded-full inline-block', hasAgent(p) ? 'bg-green-500' : 'bg-red-500']"></span>
+                                        </td>
+                                        <td class="p-3 text-right font-bold text-lg text-brand-600">{{ formatGlobalValue(p) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </transition>
+        </div>
+    </main>
+</div>
+
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                currentView: 'import',
+                appLogo: null,
+                allPlayers: [],
+                allStandings: {}, 
+                leagues: {}, 
+                leagueMaxMatchdays: {}, 
+                searchQuery: '',
+                clubSearch: '',
+                selectedPlayer: null,
+                selectedClub: null,
+                matchHome: '',
+                matchAway: '',
+                comparisonList: [],
+                shortlist: [], 
+                
+                // Global Stats State
+                globalMetric: 'Total Goles',
+                globalFilterPos: '',
+                globalFilterLeague: '',
+                globalFilterAge: '',
+                
+                headers: [],
+                filters: [{ column: '', operator: 'contains', value: '', value2: '' }],
+                loading: false,
+                playerNotes: '', 
+                radarChartInstance: null,
+                scatterChartInstance: null, 
+                scatterMetric: 'Minutos Jugados', 
+                scatterDebounce: null, 
+                chartColors: [
+                    { border: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.2)' },
+                    { border: '#f59e0b', bg: 'rgba(245, 158, 11, 0.2)' },
+                    { border: '#ec4899', bg: 'rgba(236, 72, 153, 0.2)' }
+                ],
+                menuItems: [
+                    { id: 'import', label: 'Importar', icon: 'fas fa-cloud-upload-alt' },
+                    { id: 'players', label: 'Scouting', icon: 'fas fa-users' },
+                    { id: 'clubs', label: 'Clubes', icon: 'fas fa-shield-alt' },
+                    { id: 'shadowteam', label: 'Shadow Team', icon: 'fas fa-chess-board' }, 
+                    { id: 'matchday', label: 'Match Day', icon: 'fas fa-handshake' }, 
+                    { id: 'compare', label: 'Comparador', icon: 'fas fa-chart-radar' },
+                    { id: 'globalstats', label: 'Global Stats', icon: 'fas fa-globe' },
+                    { id: 'filter', label: 'Data Lab', icon: 'fas fa-table' },
+                    { id: 'leagues', label: 'Competiciones', icon: 'fas fa-trophy' },
+                    { id: 'agenda', label: 'Mi Agenda', icon: 'fas fa-star' },
+                ],
+                statMetrics: [
+                    { key: 'GolesPer90', label: 'Goles/Enc p90', max: 1 }, 
+                    { key: 'Asistencias', label: 'Asistencias', max: 1 }, 
+                    { key: 'EncajadosPer90', label: 'Encajados p90', max: 1 }, 
+                    { key: 'Minutos Jugados', label: 'Minutos', max: 1 },
+                    { key: 'TitularPercentage', label: '% Titular', max: 100 }, 
+                    { key: 'Convocados', label: 'Convocatorias', max: 1 },
+                    { key: 'Rating', label: 'Rating', max: 100 }
+                ],
+                // Updated with new numeric columns
+                numericColumns: ['Edad', 'Total Goles', 'Minutos Jugados', 'Titular', 'Suplente', 'Convocados', 'PJ', 'PT', 'Asistencias', 'Tarjetas', 'cm', '€', 'rating', 'Goles_Favor', 'Goles_Contra', 'GolesPer90', 'EncajadosPer90', 'ValorMercado', 'Altura', 'Rating'],
+                
+                // SHADOW TEAM STATE
+                shadowTeam: [
+                    { id: 'gk', label: 'POR', player: null, top: '88%', left: '50%' },
+                    { id: 'lb', label: 'LI', player: null, top: '70%', left: '15%' },
+                    { id: 'lcb', label: 'DCT', player: null, top: '75%', left: '35%' },
+                    { id: 'rcb', label: 'DCT', player: null, top: '75%', left: '65%' },
+                    { id: 'rb', label: 'LD', player: null, top: '70%', left: '85%' },
+                    { id: 'cdm', label: 'MCD', player: null, top: '55%', left: '50%' },
+                    { id: 'lcm', label: 'MC', player: null, top: '45%', left: '30%' },
+                    { id: 'rcm', label: 'MC', player: null, top: '45%', left: '70%' },
+                    { id: 'lw', label: 'EI', player: null, top: '25%', left: '20%' },
+                    { id: 'rw', label: 'ED', player: null, top: '25%', left: '80%' },
+                    { id: 'st', label: 'DC', player: null, top: '15%', left: '50%' },
+                ],
+                showShadowPicker: false,
+                activeShadowIndex: null,
+                shadowSearch: '',
+                shadowFilterMode: 'all', 
+            }
+        },
+        computed: {
+            currentTitle() {
+                const titles = {
+                    import: 'Configuración',
+                    players: 'Base de Datos de Talentos',
+                    profile: 'Ficha Técnica',
+                    clubs: 'Directorio de Clubes',
+                    clubProfile: 'Análisis de Club',
+                    shadowteam: 'Planificador de Plantilla',
+                    matchday: 'Match Day: Pre-Partido',
+                    compare: 'Análisis Comparativo',
+                    globalstats: 'Global Stats Hub',
+                    filter: 'Explorador Avanzado (Data Lab)',
+                    leagues: 'Ligas y Clasificaciones',
+                    agenda: 'Mi Agenda Personal'
+                };
+                return titles[this.currentView];
+            },
+            currentSubtitle() {
+                const subtitles = {
+                    import: 'Carga Excel (.xlsx/csv) con Agentes, Valores y Ratings.',
+                    players: 'Indicadores de Agente activos. Busca y filtra.',
+                    profile: 'Detalles, métricas físicas y situación contractual.',
+                    clubs: 'Visión general de equipos.',
+                    clubProfile: 'Profundiza en la estructura y rendimiento.',
+                    shadowteam: 'Construye tu equipo. Puntos rojos = Sin Agente.',
+                    matchday: 'Comparativa de equipos pre-partido.',
+                    compare: 'Radar incluyendo Asistencias y Rating.',
+                    globalstats: 'Rankings globales.',
+                    filter: 'Filtrar por Agente, Valor, etc.',
+                    leagues: 'Tablas de clasificación.',
+                    agenda: 'Tus jugadores guardados.'
+                };
+                return subtitles[this.currentView];
+            },
+            totalPlayers() { return this.allPlayers.length; },
+            // Computed to count free agents
+            totalFreeAgents() {
+                return this.allPlayers.filter(p => !this.hasAgent(p)).length;
+            },
+            filteredPlayers() {
+                if (!this.searchQuery) return this.allPlayers;
+                const q = this.searchQuery.toLowerCase();
+                return this.allPlayers.filter(p => 
+                    (p.Nombre && p.Nombre.toLowerCase().includes(q)) || 
+                    (p['Equipo Actual'] && p['Equipo Actual'].toLowerCase().includes(q)) ||
+                    (p.Posición && p.Posición.toLowerCase().includes(q)) ||
+                    // Search by Agent status
+                    (q === 'sin agente' && !this.hasAgent(p)) ||
+                    (q === 'con agente' && this.hasAgent(p))
+                );
+            },
+            paginatedPlayers() { return this.filteredPlayers.slice(0, 32); },
+            uniqueClubs() {
+                const clubs = {};
+                this.allPlayers.forEach(p => {
+                    const cName = p['Equipo Actual'];
+                    if (!cName) return;
+                    if (!clubs[cName]) {
+                        clubs[cName] = { 
+                            name: cName, 
+                            logo: p['URL Escudo'], 
+                            players: [],
+                            stats: { totalGoalsFor: 0, totalGoalsAgainst: 0, totalAge: 0, count: 0 },
+                            standingData: null 
+                        };
+                    }
+                    clubs[cName].players.push(p);
+                    clubs[cName].stats.totalGoalsFor += p['Goles_Favor'];
+                    clubs[cName].stats.totalGoalsAgainst += p['Goles_Contra'];
+                    if(p.Edad > 0) {
+                        clubs[cName].stats.totalAge += p.Edad;
+                        clubs[cName].stats.count++;
+                    }
+                });
+
+                Object.values(clubs).forEach(c => {
+                    c.stats.avgAge = c.stats.count ? (c.stats.totalAge / c.stats.count).toFixed(1) : 0;
+                    const leagueName = c.players[0].leagueName;
+                    if (this.allStandings[leagueName]) {
+                        const match = this.allStandings[leagueName].find(t => 
+                            t.Equipo.toLowerCase().trim() === c.name.toLowerCase().trim()
+                        );
+                        if (match) c.standingData = match;
+                    }
+                });
+                return Object.values(clubs).sort((a,b) => a.name.localeCompare(b.name));
+            },
+            filteredClubs() {
+                if (!this.clubSearch) return this.uniqueClubs;
+                return this.uniqueClubs.filter(c => c.name.toLowerCase().includes(this.clubSearch.toLowerCase()));
+            },
+            filteredTablePlayers() {
+                if (this.filters.length === 1 && !this.filters[0].column) return this.allPlayers;
+                return this.allPlayers.filter(p => {
+                    return this.filters.every(filter => {
+                        if (!filter.column || filter.value === '') return true; 
+                        
+                        // Special Handler for Agent Status
+                        if (filter.column === 'AgentStatus') {
+                            const has = this.hasAgent(p);
+                            return filter.value === 'SI' ? has : !has;
+                        }
+
+                        const isNumeric = this.isNumericColumn(filter.column);
+                        let rawVal = p[filter.column];
+                        if(filter.column === 'Total Goles') rawVal = p.isGK ? p['Goles_Contra'] : p['Goles_Favor'];
+                        
+                        if (rawVal === undefined || rawVal === null) return false;
+                        if (isNumeric) {
+                            const numVal = parseFloat(rawVal) || 0;
+                            const val1 = parseFloat(filter.value);
+                            const val2 = parseFloat(filter.value2);
+                            if (isNaN(val1)) return true; 
+                            switch (filter.operator) {
+                                case 'gt': return numVal > val1;
+                                case 'lt': return numVal < val1;
+                                case 'eq': return numVal === val1;
+                                case 'bt': return (!isNaN(val2)) ? (numVal >= val1 && numVal <= val2) : (numVal >= val1);
+                                default: return true;
+                            }
+                        } else {
+                            const strVal = rawVal.toString().toLowerCase();
+                            const query = filter.value.toLowerCase();
+                            if (filter.operator === 'eq') return strVal === query;
+                            return strVal.includes(query); 
+                        }
+                    });
+                });
+            },
+            groupedLeagues() {
+                const res = {};
+                this.uniqueClubs.forEach(club => {
+                    const leagueName = club.players[0].leagueName || 'General';
+                    if(!res[leagueName]) res[leagueName] = { clubs: [], expanded: true };
+                    res[leagueName].clubs.push(club);
+                });
+                return res;
+            },
+            filteredShadowPlayers() {
+                const list = this.shadowFilterMode === 'shortlist' ? this.shortlist : this.allPlayers;
+                if (!this.shadowSearch) return list.slice(0, 50); 
+                const q = this.shadowSearch.toLowerCase();
+                return list.filter(p => p.Nombre.toLowerCase().includes(q) || p.Posición.toLowerCase().includes(q)).slice(0, 50);
+            },
+            globalRankings() {
+                let list = this.allPlayers;
+                if(this.globalFilterLeague) {
+                    list = list.filter(p => p.leagueName === this.globalFilterLeague);
+                }
+                if(this.globalFilterPos) {
+                    list = list.filter(p => p.Posición && p.Posición.includes(this.globalFilterPos));
+                }
+                if(this.globalFilterAge === 'U23') list = list.filter(p => p.Edad < 23);
+                
+                return list.sort((a,b) => {
+                    let valA = 0; let valB = 0;
+                    
+                    if (this.globalMetric === 'ValorMercado') {
+                        valA = a.ValorMercado || 0; valB = b.ValorMercado || 0;
+                    } else if (this.globalMetric === 'Rating') {
+                        valA = a.Rating || 0; valB = b.Rating || 0;
+                    } else if (this.globalMetric === 'Asistencias') {
+                        valA = a.Asistencias || 0; valB = b.Asistencias || 0;
+                    } else if (this.globalMetric === 'TitularPercentage') {
+                         valA = this.getTitularPercentage(a); valB = this.getTitularPercentage(b);
+                    } else if (this.globalMetric === 'Total Goles') {
+                         valA = a.isGK ? a['Goles_Contra'] : a['Goles_Favor'];
+                         valB = b.isGK ? b['Goles_Contra'] : b['Goles_Favor'];
+                    } else if (this.globalMetric === 'Edad') {
+                        valA = a.Edad; valB = b.Edad;
+                        return valA - valB; 
+                    } else {
+                        valA = a[this.globalMetric] || 0;
+                        valB = b[this.globalMetric] || 0;
+                    }
+                    return valB - valA; 
+                }).slice(0, 100);
+            }
+        },
+        watch: {
+            comparisonList: { deep: true, handler() { this.$nextTick(() => { if (this.currentView === 'compare') this.renderChart(); }); }},
+            currentView(newVal) { 
+                if (newVal === 'compare') { this.$nextTick(() => this.renderChart()); }
+                if (newVal === 'filter') { this.$nextTick(() => this.triggerScatterUpdate()); }
+            },
+            allPlayers() { this.calculateMaxStats(); },
+            shortlist: { deep: true, handler(newVal) { localStorage.setItem('rclpro_shortlist', JSON.stringify(newVal)); }},
+            shadowTeam: { deep: true, handler(newVal) { localStorage.setItem('rclpro_shadowteam', JSON.stringify(newVal)); } },
+            filteredTablePlayers() { if (this.currentView === 'filter') { this.triggerScatterUpdate(); } }
+        },
+        methods: {
+            hasAgent(player) {
+                if (!player) return false;
+                // Check boolean or string "SI"
+                if (typeof player.AgentStatus === 'boolean') return player.AgentStatus;
+                return player.AgentStatus === 'SI' || player.AgentStatus === 'Yes';
+            },
+            formatMoney(value) {
+                if (!value) return '-';
+                return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumSignificantDigits: 3 }).format(value);
+            },
+            isNumericColumn(colName) { 
+                if(!colName) return false;
+                return this.numericColumns.includes(colName); 
+            },
+            addFilter() { this.filters.push({ column: '', operator: 'contains', value: '', value2: '' }); },
+            removeFilter(index) { if(this.filters.length > 1) { this.filters.splice(index, 1); } else { this.resetFilters(); } },
+            resetFilters() { this.filters = [{ column: '', operator: 'contains', value: '', value2: '' }]; },
+            resetFilterValues(filter) { 
+                filter.value = ''; 
+                filter.value2 = ''; 
+                filter.operator = this.isNumericColumn(filter.column) ? 'gt' : 'contains'; 
+            },
+            cleanNumber(val) {
+                if (typeof val === 'number') return val;
+                if (!val) return 0;
+                // Handle currency symbols or units if they sneak in
+                const cleaned = val.toString().replace(/[^\d.-]/g, '');
+                return parseFloat(cleaned) || 0;
+            },
+            handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                this.loading = true;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        workbook.SheetNames.forEach(sheetName => {
+                            const worksheet = workbook.Sheets[sheetName];
+                            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                            
+                            // Determine max matchdays
+                            const maxConvo = Math.max(...jsonData.map(row => {
+                                // Try 'Convocados', 'PJ', or 'Jugados'
+                                return this.cleanNumber(row['Convocados'] || row['PJ'] || 0);
+                            }));
+                            this.leagueMaxMatchdays[sheetName] = maxConvo > 0 ? maxConvo : 1;
+
+                            const cleanData = jsonData.map((p, idx) => {
+                                // MAPPING LOGIC FOR NEW & OLD FORMATS
+                                
+                                // Goals Logic: Prefer 'Goles', fallback 'Total Goles'
+                                const rawGoals = this.cleanNumber(p['Goles'] !== undefined ? p['Goles'] : p['Total Goles']);
+                                
+                                // Minutes Logic: Prefer 'PJ', fallback 'Minutos Jugados'
+                                // Note: PJ is games, Minutos is minutes. We store both if possible.
+                                const pj = this.cleanNumber(p['PJ']);
+                                const minutes = this.cleanNumber(p['Minutos Jugados']);
+                                
+                                const isGK = (p['Posición'] && p['Posición'].toLowerCase().includes('portero'));
+                                const goalsForCalc = isGK ? 0 : rawGoals;
+                                
+                                // Metrics per 90 (if minutes exist) OR per Game (if PJ exist)
+                                // We default to per 90 if minutes exist, otherwise estimation based on PJ * 90? No, let's keep clean.
+                                let gp90 = "0.00";
+                                let gc90 = "0.00";
+                                
+                                if (minutes > 0) {
+                                    gp90 = ((goalsForCalc / minutes) * 90).toFixed(2);
+                                    gc90 = ((rawGoals / minutes) * 90).toFixed(2);
+                                } else if (pj > 0) {
+                                    // Fallback metric per Game
+                                    gp90 = (goalsForCalc / pj).toFixed(2);
+                                    gc90 = (rawGoals / pj).toFixed(2);
+                                }
+
+                                // AGENT LOGIC
+                                // Format: 'Agente' column with 'SI' or 'NO'
+                                const agentVal = p['Agente'] ? p['Agente'].toString().toUpperCase() : 'NO';
+                                const agentStatus = (agentVal === 'SI' || agentVal === 'YES');
+
+                                return {
+                                    ...p,
+                                    id: sheetName + '_' + idx + '_' + Math.random().toString(36).substr(2, 5),
+                                    leagueName: sheetName,
+                                    isGK: isGK,
+                                    'Nombre': p['Nombre'],
+                                    'Equipo Actual': p['Equipo'] || p['Equipo Actual'],
+                                    'Posición': p['Posición'],
+                                    'URL Imagen': p['Link Imagen'] || p['URL Imagen'],
+                                    'URL Escudo': p['Link Escudo'] || p['URL Escudo'],
+                                    
+                                    // Stats
+                                    'Goles_Favor': goalsForCalc,
+                                    'Goles_Contra': isGK ? rawGoals : 0,
+                                    'Total Goles': rawGoals,
+                                    'Minutos Jugados': minutes, // Can be 0 if new format only has PJ
+                                    'PJ': pj,
+                                    'PT': this.cleanNumber(p['PT'] || p['Titular']),
+                                    'Asistencias': this.cleanNumber(p['Asistencias']),
+                                    'Tarjetas': this.cleanNumber(p['Tarjetas'] || p['Amarillas']), // Map generic cards to yellow for now if needed
+                                    
+                                    // Info
+                                    'Edad': this.cleanNumber(p['Edad']),
+                                    'Titular': this.cleanNumber(p['PT'] || p['Titular']),
+                                    'Convocados': this.cleanNumber(p['Convocados'] || p['PJ']), // Fallback
+                                    
+                                    // New Physical/Market
+                                    'Altura': this.cleanNumber(p['cm']),
+                                    'ValorMercado': this.cleanNumber(p['€']),
+                                    'Rating': this.cleanNumber(p['rating']),
+                                    'AgentStatus': agentStatus, // Boolean for internal logic
+                                    'Dorsal': p['Dorsal'],
+                                    'Nacionalidad': p['Nacionalidad'],
+
+                                    // Calc
+                                    'GolesPer90': parseFloat(gp90),
+                                    'EncajadosPer90': parseFloat(gc90)
+                                };
+                            });
+                            
+                            if (jsonData.length > 0) { 
+                                // Merge headers intelligently
+                                const newHeaders = Object.keys(cleanData[0]);
+                                this.headers = [...new Set([...this.headers, ...newHeaders])].filter(h => !['id','isGK'].includes(h));
+                            }
+                            
+                            if(!this.leagues[sheetName]) this.leagues[sheetName] = true; 
+                            this.allPlayers = [...this.allPlayers, ...cleanData];
+                        });
+                        setTimeout(() => { this.loading = false; }, 800); 
+                    } catch (error) {
+                        console.error(error);
+                        alert("Error al leer Excel. Asegúrate de que el formato sea correcto.");
+                        this.loading = false;
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            },
+            // Rest of upload/handler methods (standings, logo) remain identical
+            handleStandingsUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                this.loading = true;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        workbook.SheetNames.forEach(sheetName => {
+                            this.allStandings[sheetName] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+                        });
+                        setTimeout(() => { this.loading = false; alert("Clasificaciones importadas."); }, 800);
+                    } catch (error) { this.loading = false; }
+                };
+                reader.readAsArrayBuffer(file);
+            },
+            handleLogoUpload(event) {
+                const file = event.target.files[0];
+                if (file) this.appLogo = URL.createObjectURL(file);
+            },
+            openPlayerProfile(player) { 
+                this.playerNotes = ''; 
+                this.selectedPlayer = player; 
+                this.currentView = 'profile'; 
+            },
+            openClubProfile(club) { this.selectedClub = club; this.currentView = 'clubProfile'; },
+            openClubFromStanding(teamName) {
+                const club = this.uniqueClubs.find(c => c.name.toLowerCase().trim() === teamName.toLowerCase().trim());
+                if (club) { this.openClubProfile(club); } else { alert("No se encontraron datos de plantilla para: " + teamName); }
+            },
+            setDefaultImage(e) { e.target.src = "https://ui-avatars.com/api/?name=Player&background=cbd5e1&color=fff"; },
+            addToCompare(player) {
+                if (this.comparisonList.length >= 3) { alert("Máximo 3 jugadores"); return; }
+                if (!this.comparisonList.find(p => p.id === player.id)) { this.comparisonList.push(player); this.currentView = 'compare'; }
+            },
+            removeFromCompare(index) { this.comparisonList.splice(index, 1); },
+            
+            calculateMaxStats() {
+                this.statMetrics.forEach(m => {
+                    if (m.key === 'TitularPercentage' || m.key === 'Rating') {
+                        m.max = 100; 
+                    } else {
+                        const checkKey = m.key; 
+                        const maxVal = Math.max(...this.allPlayers.map(p => p[checkKey] || 0));
+                        m.max = maxVal > 0 ? maxVal : 1; 
+                        if (m.key === 'EncajadosPer90') {
+                             const maxEnc = Math.max(...this.allPlayers.map(p => p.EncajadosPer90 || 0));
+                             m.max = maxEnc > 0 ? maxEnc : 3.0; 
+                        }
+                    }
+                });
+            },
+            getPercentage(val, max) { return Math.min(100, ((val || 0) / max) * 100); },
+            getTitularPercentage(player) {
+                // If we have direct percentages or matches
+                if (player.PJ > 0) {
+                     return ((player.PT / player.PJ) * 100).toFixed(1);
+                }
+                const maxMatchdays = this.leagueMaxMatchdays[player.leagueName] || 1; 
+                return parseFloat(((player.Titular / maxMatchdays) * 100).toFixed(1));
+            },
+            formatGlobalValue(player) {
+                if (this.globalMetric === 'ValorMercado') return this.formatMoney(player.ValorMercado);
+                if (this.globalMetric === 'Rating') return player.Rating;
+                if (this.globalMetric === 'Asistencias') return player.Asistencias;
+                if (this.globalMetric === 'TitularPercentage') return this.getTitularPercentage(player) + '%';
+                if (this.globalMetric === 'Edad') return player.Edad + ' años';
+                if (this.globalMetric === 'Total Goles') return player.isGK ? player['Goles_Contra'] + ' (Enc)' : player['Goles_Favor'];
+                return player[this.globalMetric];
+            },
+            isShortlisted(player) { return this.shortlist.some(p => p.id === player.id); },
+            toggleShortlist(player) {
+                const index = this.shortlist.findIndex(p => p.id === player.id);
+                if (index === -1) this.shortlist.push(player); else this.shortlist.splice(index, 1); 
+            },
+            exportShortlist() {
+                if (this.shortlist.length === 0) return;
+                const exportData = this.shortlist.map(p => ({
+                    Nombre: p.Nombre,
+                    Equipo: p['Equipo Actual'],
+                    Posicion: p.Posición,
+                    Agente: this.hasAgent(p) ? 'SI' : 'NO',
+                    Valor: p.ValorMercado,
+                    Rating: p.Rating,
+                    Asistencias: p.Asistencias
+                }));
+                const ws = XLSX.utils.json_to_sheet(exportData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Agenda");
+                XLSX.writeFile(wb, "RCLPro_Agenda.xlsx");
+            },
+            
+            // SHADOW TEAM
+            openShadowPicker(index) { this.activeShadowIndex = index; this.shadowSearch = ''; this.showShadowPicker = true; },
+            selectShadowPlayer(player) { this.shadowTeam[this.activeShadowIndex].player = player; this.showShadowPicker = false; },
+            removeShadowPlayer(index) { this.shadowTeam[index].player = null; },
+            clearShadowTeam() { if(confirm("¿Borrar todo?")) this.shadowTeam.forEach(slot => slot.player = null); },
+
+            // REPORT
+            generateReport() {
+                const element = document.getElementById('player-report-card');
+                html2canvas(element, { scale: 2, useCORS: true, ignoreElements: (node) => node.classList.contains('no-capture') }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `Informe_${this.selectedPlayer.Nombre}.png`;
+                    link.href = canvas.toDataURL();
+                    link.click();
+                });
+            },
+
+            // CHARTS
+            renderChart() { // RADAR
+                const ctx = document.getElementById('radarChart');
+                if (!ctx || this.comparisonList.length === 0) return;
+                if (this.radarChartInstance) { this.radarChartInstance.destroy(); this.radarChartInstance = null; }
+
+                const datasets = this.comparisonList.map((player, i) => {
+                    const goalMetric = player.isGK ? player['EncajadosPer90'] : player['GolesPer90'];
+                    const goalMax = player.isGK ? 
+                        this.statMetrics.find(m=>m.key==='EncajadosPer90').max : 
+                        this.statMetrics.find(m=>m.key==='GolesPer90').max;
+                    
+                    // Incorporate Assists and Rating into Radar
+                    const assistMax = this.statMetrics.find(m=>m.key==='Asistencias').max || 1;
+                    
+                    return {
+                        label: player.Nombre,
+                        data: [
+                            this.getPercentage(goalMetric, goalMax),
+                            this.getPercentage(player['Asistencias'], assistMax),
+                            player.Rating || 50, // Default to middle if no rating
+                            this.getTitularPercentage(player), 
+                            Math.min(100, (player.Edad / 40) * 100)
+                        ],
+                        backgroundColor: this.chartColors[i].bg,
+                        borderColor: this.chartColors[i].border,
+                        pointBackgroundColor: '#fff',
+                        borderWidth: 2,
+                    }
+                });
+
+                this.radarChartInstance = new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: ['Goles/Enc', 'Asistencias', 'Rating', '% Titular', 'Veteranía'],
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { r: { suggestedMin: 0, suggestedMax: 100, grid: { color: '#e2e8f0' } } }
+                    }
+                });
+            },
+
+            triggerScatterUpdate() {
+                if (this.scatterDebounce) clearTimeout(this.scatterDebounce);
+                this.scatterDebounce = setTimeout(() => { this.renderScatterChart(); }, 300); 
+            },
+            renderScatterChart() {
+                const ctx = document.getElementById('scatterChart');
+                if (!ctx) return; 
+                if (this.scatterChartInstance) { this.scatterChartInstance.destroy(); this.scatterChartInstance = null; }
+
+                // Map metric for scatter
+                const dataPoints = this.filteredTablePlayers.map(p => {
+                    let yVal = 0;
+                    if (this.scatterMetric === 'ValorMercado') yVal = p.ValorMercado;
+                    else if (this.scatterMetric === 'Rating') yVal = p.Rating;
+                    else if (this.scatterMetric === 'Asistencias') yVal = p.Asistencias;
+                    else if (this.scatterMetric === 'Minutos Jugados') yVal = p['Minutos Jugados'] || (p.PJ * 90);
+                    else yVal = p[this.scatterMetric] || 0;
+
+                    return { x: p.Edad || 0, y: yVal || 0, player: p };
+                });
+
+                this.scatterChartInstance = new Chart(ctx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [{
+                            label: 'Jugadores',
+                            data: dataPoints,
+                            backgroundColor: 'rgba(14, 165, 233, 0.6)',
+                            borderColor: '#0ea5e9',
+                            borderWidth: 1,
+                            pointRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { title: { display: true, text: 'Edad' }, min: 15, max: 40 },
+                            y: { title: { display: true, text: this.scatterMetric }, beginAtZero: true }
+                        },
+                        plugins: {
+                            tooltip: { callbacks: { label: (c) => `${c.raw.player.Nombre} (${c.raw.y})` } }
+                        },
+                        onClick: (e, elements) => {
+                            if (elements.length > 0) this.openPlayerProfile(this.scatterChartInstance.data.datasets[0].data[elements[0].index].player);
+                        }
+                    }
+                });
+            }
+        },
+        mounted() {
+            const savedShortlist = localStorage.getItem('rclpro_shortlist');
+            if (savedShortlist) try { this.shortlist = JSON.parse(savedShortlist); } catch(e) {}
+            const savedShadowTeam = localStorage.getItem('rclpro_shadowteam');
+            if (savedShadowTeam) try { 
+                const loaded = JSON.parse(savedShadowTeam);
+                this.shadowTeam = this.shadowTeam.map((slot, idx) => ({ ...slot, player: loaded[idx] ? loaded[idx].player : null }));
+            } catch(e) {}
+            this.calculateMaxStats();
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
